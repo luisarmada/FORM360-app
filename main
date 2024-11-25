@@ -1,0 +1,49 @@
+import cv2
+from pose_renderer import PoseRenderer
+from overhead_press_exercise import OverheadPressExercise
+from joint_utils import JointUtils
+
+if __name__ == "__main__":
+    cam = cv2.VideoCapture(0)
+    pose_renderer = PoseRenderer()
+    exercise = OverheadPressExercise()
+
+    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
+    while True:
+        ret, frame = cam.read()
+        if not ret:
+            print("Error: Failed to capture frame.")
+            break
+
+        results, JointUtils.frame = pose_renderer.process_frame(frame)
+
+        if results.pose_landmarks:
+            # Mirror the landmarks as the frame is mirrored
+            JointUtils.landmarks = pose_renderer.swap_landmarks_for_mirror(results.pose_landmarks.landmark)
+
+            # Detect reps
+            rep_count = exercise.detect_reps()
+
+            cv2.putText(JointUtils.frame, f'Rep Count: {rep_count}', 
+                        (10, 30),  # Top-left corner of the screen
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,  # Font and scale
+                        (0, 255, 0), 2, cv2.LINE_AA)  # Color (green), thickness, and anti-aliasing
+
+
+            # Draw landmarks and connections
+            pose_renderer.mp_drawing.draw_landmarks(
+                JointUtils.frame, results.pose_landmarks, pose_renderer.mp_pose.POSE_CONNECTIONS,
+                pose_renderer.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+                pose_renderer.mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2, circle_radius=2),
+            )
+
+        # Display the frame
+        cv2.imshow("Exercise Detection", JointUtils.frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cam.release()
+    cv2.destroyAllWindows()
